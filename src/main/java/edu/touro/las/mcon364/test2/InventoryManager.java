@@ -8,45 +8,44 @@ import java.util.concurrent.atomic.AtomicInteger;
  * ══════════════════════════════════════════════════════════════
  * Problem 1 of 3
  * ══════════════════════════════════════════════════════════════
- * <p>
+ *
  * SCENARIO
  * --------
  * A warehouse system lets many threads update item stock simultaneously.
  * You must make the {@code InventoryManager} thread-safe so that no stock
  * updates are lost and stock never goes negative.
- * <p>
+ *
  * REQUIREMENTS  (read every TODO carefully — each is graded)
- * <p>
+ *
  * 1. {@code addStock(String item, int qty)}
- * - Adds {@code qty} units of {@code item} to the inventory.
- * - {@code qty} must be > 0; throw {@link IllegalArgumentException} otherwise.
- * - Must be thread-safe under concurrent calls.
- * - Also increments the running {@code totalUnitsAdded} counter atomically.
- * <p>
+ *    - Adds {@code qty} units of {@code item} to the inventory.
+ *    - {@code qty} must be > 0; throw {@link IllegalArgumentException} otherwise.
+ *    - Must be thread-safe under concurrent calls.
+ *    - Also increments the running {@code totalUnitsAdded} counter atomically.
+ *
  * 2. {@code removeStock(String item, int qty)}
- * - Removes {@code qty} units of {@code item} if sufficient stock exists.
- * - Returns {@code true} if the removal succeeded, {@code false} if the
- * current stock is less than {@code qty} (do NOT go negative).
- * - {@code qty} must be > 0; throw {@link IllegalArgumentException} otherwise.
- * - Must be thread-safe: two threads must not both succeed when only one
- * unit of stock remains and both try to remove one unit.
- * - Hint: once you have chosen the right Map implementation, its
- * {@code compute()} method lets you read and write atomically.
- * <p>
+ *    - Removes {@code qty} units of {@code item} if sufficient stock exists.
+ *    - Returns {@code true} if the removal succeeded, {@code false} if the
+ *      current stock is less than {@code qty} (do NOT go negative).
+ *    - {@code qty} must be > 0; throw {@link IllegalArgumentException} otherwise.
+ *    - Must be thread-safe: two threads must not both succeed when only one
+ *      unit of stock remains and both try to remove one unit.
+ *    - Hint: once you have chosen the right Map implementation, its
+ *      {@code compute()} method lets you read and write atomically.
+ *
  * 3. {@code getStock(String item)}
- * - Returns the current stock for {@code item}, or {@code 0} if the item
- * has never been added.
- * <p>
+ *    - Returns the current stock for {@code item}, or {@code 0} if the item
+ *      has never been added.
+ *
  * 4. {@code getTotalUnitsAdded()}
- * - Returns the running total of every unit ever added across all items.
- * - Must reflect concurrent additions accurately but you cannot mark the method as synchronized.
- * <p>
+ *    - Returns the running total of every unit ever added across all items.
+ *    - Must reflect concurrent additions accurately but you cannot mark the method as synchronized.
+ *
  * 5. {@code getSnapshot()}
- * - Returns an unmodifiable copy of the current inventory so callers
- * cannot mutate internal state.
- * - Hint: {@link Map#copyOf(Map)}.
- * <p>
- * <p>
+ *    - Returns an unmodifiable copy of the current inventory so callers
+ *      cannot mutate internal state.
+ *    - Hint: {@link Map#copyOf(Map)}.
+ *
  * DO NOT use any other concurrency utilities.
  */
 public class InventoryManager {
@@ -68,16 +67,16 @@ public class InventoryManager {
      */
     public void addStock(String item, int qty) {
         // TODO: validate qty > 0
+        if (qty <= 0) {
+            throw new IllegalArgumentException();
+        }
 
         // TODO: atomically add qty to the item's current stock
         //       Hint: the thread-safe Map implementation you chose has a merge() method
         //             that can do this in one atomic step
-
-        // TODO: atomically add qty to totalUnitsAdded
-        if (qty <= 0) {
-            throw new IllegalArgumentException();
-        }
         stock.merge(item, qty, Integer::sum);
+        // TODO: atomically add qty to totalUnitsAdded
+        totalUnitsAdded.addAndGet(qty);
     }
 
     /**
@@ -89,10 +88,13 @@ public class InventoryManager {
      * @throws IllegalArgumentException if qty ≤ 0
      */
     public boolean removeStock(String item, int qty) {
+
         // TODO: validate qty > 0
-        if (qty <= 0 ) {
+        if (qty <= 0) {
             throw new IllegalArgumentException();
         }
+
+        AtomicInteger success = new AtomicInteger(0);
 
         // TODO: atomically check-and-decrement.
         //       If current stock >= qty, subtract qty.
@@ -100,8 +102,21 @@ public class InventoryManager {
         //       Return true if stock was depleted, false if unchanged
         //       Hint: your chosen Map has a compute() method that lets you
         //             read and write in one atomic step.
-        //return stock.compute(item, (k, v) -> (v > qty) ? v : v - qty) != null  ;
-        return stock.computeIfPresent(item, (k, v) -> (v > qty) ? v : v - qty) != null;
+        stock.compute(item, (k, v) -> {
+
+            if (v == null) {
+                return null;
+            }
+
+            if (v >= qty) {
+                success.set(1);
+                return v - qty;
+            }
+
+            return v;
+        });
+
+        return success.get() == 1;
     }
 
     /**
@@ -115,7 +130,9 @@ public class InventoryManager {
      * Returns the cumulative number of units ever added (all items combined).
      */
     public int getTotalUnitsAdded() {
-        return stock.values().stream().mapToInt(Integer::intValue).sum();
+
+        // TODO: return the atomic running total
+        return totalUnitsAdded.get();
     }
 
     /**
@@ -127,4 +144,3 @@ public class InventoryManager {
         return Map.copyOf(stock);
     }
 }
-

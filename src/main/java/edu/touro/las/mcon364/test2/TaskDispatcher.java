@@ -2,7 +2,6 @@ package edu.touro.las.mcon364.test2;
 
 import java.util.ArrayList;
 import java.util.List;
-import java.util.Map;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
 import java.util.concurrent.Future;
@@ -72,10 +71,13 @@ public class TaskDispatcher {
         // TODO 3
         List<Future<String>> futures = new ArrayList<>();
         tasks.stream().forEach(task -> {
-            pool.submit(() -> {
-                task.toUpperCase();
-                recordResult(task);
+
+            Future<String> future = pool.submit(() -> {
+                String result = task.toUpperCase();
+                recordResult(result);
+                return result;
             });
+            futures.add(future);
         });
         return futures;
     }
@@ -86,6 +88,7 @@ public class TaskDispatcher {
         lock.lock();
         try {
             results.add(result);
+            completedCount++;
         } finally {
             lock.unlock();
         }
@@ -115,5 +118,4 @@ public class TaskDispatcher {
             lock.unlock();
         }
     }
-
 }
